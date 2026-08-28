@@ -53,6 +53,10 @@ func (h *AuthHandler) HandleRequestOTP(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 			return
 		}
+		if errors.Is(err, service.ErrRateLimitExceeded) {
+			writeJSON(w, http.StatusTooManyRequests, ErrorResponse{Error: err.Error()})
+			return
+		}
 		log.Printf("Error requesting OTP for %s: %v", req.Email, err)
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
 		return

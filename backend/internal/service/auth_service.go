@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -17,6 +18,7 @@ import (
 
 var (
 	ErrInvalidEmailDomain = errors.New("email must end with @iitg.ac.in")
+	ErrRateLimitExceeded  = errors.New("rate limit exceeded, please wait 60 seconds")
 	ErrOTPNotFound        = errors.New("invalid code")
 	ErrOTPExpired         = errors.New("expired")
 	ErrOTPAlreadyUsed     = errors.New("already used")
@@ -31,14 +33,17 @@ type JWTClaims struct {
 }
 
 type AuthService struct {
-	repo      repository.Repository
-	jwtSecret []byte
+	repo         repository.Repository
+	jwtSecret    []byte
+	rateLimitMu  sync.Mutex
+	rateLimitMap map[string]time.Time
 }
 
 func NewAuthService(repo repository.Repository, jwtSecret string) *AuthService {
 	return &AuthService{
-		repo:      repo,
-		jwtSecret: []byte(jwtSecret),
+		repo:         repo,
+		jwtSecret:    []byte(jwtSecret),
+		rateLimitMap: make(map[string]time.Time),
 	}
 }
 
@@ -47,6 +52,16 @@ func (s *AuthService) RequestOTP(ctx context.Context, email string) (string, err
 	if !strings.HasSuffix(email, "@iitg.ac.in") {
 		return "", ErrInvalidEmailDomain
 	}
+
+	// 60-second in-memory rate limiting check
+	s.rateLimitMu.Lock()
+	lastRequest, exists := s.rateLimitMap[email]
+	if exists && time.Since(lastRequest) < 60*time.Second {
+		s.rateLimitMu.Unlock()
+		return "", ErrRateLimitExceeded
+	}
+	s.rateLimitMap[email] = time.Now()
+	s.rateLimitMu.Unlock()
 
 	code, err := generateNumericOTP(6)
 	if err != nil {

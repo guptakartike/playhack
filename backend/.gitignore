@@ -1,0 +1,21 @@
+# Environment files
+.env
+*.env
+
+# Binaries
+bin/
+*.exe
+*.exe;
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Go workspace & vendor
+vendor/
+
+# OS specific
+.DS_Store
+Thumbs.db
