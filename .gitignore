@@ -32,12 +32,16 @@ yarn-error.log*
 # ------------------------------------------------------------------------------
 bin/
 **/bin/
-demo
-**/demo
-api
-**/api
-seed
-**/seed
+# Compiled binaries (root or backend directory)
+/backend/api
+/backend/demo
+/backend/seed
+/api
+/demo
+/seed
+backend/cmd/api/api
+backend/cmd/demo/demo
+backend/cmd/seed/seed
 *.exe
 *.exe;
 *.dll
