@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"playhack/internal/middleware"
+	"playhack/internal/repository"
 	"playhack/internal/service"
 )
 
@@ -33,7 +34,8 @@ type VerifyOTPPayload struct {
 }
 
 type VerifyOTPResponse struct {
-	Token string `json:"token"`
+	Token string           `json:"token"`
+	User  *repository.User `json:"user"`
 }
 
 type ErrorResponse struct {
@@ -76,7 +78,7 @@ func (h *AuthHandler) HandleVerifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenStr, err := h.authService.VerifyOTP(r.Context(), req.Email, req.Code)
+	tokenStr, user, err := h.authService.VerifyOTP(r.Context(), req.Email, req.Code)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrOTPAlreadyUsed),
@@ -91,7 +93,10 @@ func (h *AuthHandler) HandleVerifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, VerifyOTPResponse{Token: tokenStr})
+	writeJSON(w, http.StatusOK, VerifyOTPResponse{
+		Token: tokenStr,
+		User:  user,
+	})
 }
 
 func (h *AuthHandler) HandleGetMe(w http.ResponseWriter, r *http.Request) {

@@ -107,7 +107,7 @@ func TestConcurrencyRaceBenchmark(t *testing.T) {
 		}
 
 		code, _ := authService.RequestOTP(ctx, email)
-		token, err := authService.VerifyOTP(ctx, email, code)
+		token, _, err := authService.VerifyOTP(ctx, email, code)
 		if err != nil {
 			t.Fatalf("failed to generate token for %s: %v", email, err)
 		}

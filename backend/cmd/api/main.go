@@ -21,7 +21,9 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found or failed to load, relying on environment variables")
+		if err := godotenv.Load("../.env"); err != nil {
+			log.Println("No .env file found or failed to load, relying on environment variables")
+		}
 	}
 
 	dbURL := os.Getenv("DATABASE_URL")
@@ -36,7 +38,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "5532"
 	}
 
 	ctx := context.Background()

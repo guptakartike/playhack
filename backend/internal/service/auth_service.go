@@ -83,45 +83,45 @@ func (s *AuthService) RequestOTP(ctx context.Context, email string) (string, err
 	return code, nil
 }
 
-func (s *AuthService) VerifyOTP(ctx context.Context, email, code string) (string, error) {
+func (s *AuthService) VerifyOTP(ctx context.Context, email, code string) (string, *repository.User, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	code = strings.TrimSpace(code)
 
 	otpRow, err := s.repo.GetLatestOTPByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return "", ErrOTPNotFound
+			return "", nil, ErrOTPNotFound
 		}
-		return "", fmt.Errorf("error fetching otp: %w", err)
+		return "", nil, fmt.Errorf("error fetching otp: %w", err)
 	}
 
 	if otpRow.Consumed {
-		return "", ErrOTPAlreadyUsed
+		return "", nil, ErrOTPAlreadyUsed
 	}
 
 	if time.Now().After(otpRow.ExpiresAt) {
-		return "", ErrOTPExpired
+		return "", nil, ErrOTPExpired
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(otpRow.CodeHash), []byte(code)); err != nil {
-		return "", ErrOTPInvalid
+		return "", nil, ErrOTPInvalid
 	}
 
 	if err := s.repo.MarkOTPConsumed(ctx, otpRow.ID); err != nil {
-		return "", fmt.Errorf("failed to consume otp: %w", err)
+		return "", nil, fmt.Errorf("failed to consume otp: %w", err)
 	}
 
 	user, err := s.repo.UpsertUserByEmail(ctx, email)
 	if err != nil {
-		return "", fmt.Errorf("failed to upsert user: %w", err)
+		return "", nil, fmt.Errorf("failed to upsert user: %w", err)
 	}
 
 	tokenStr, err := s.generateJWT(user.ID, user.Role)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate jwt: %w", err)
+		return "", nil, fmt.Errorf("failed to generate jwt: %w", err)
 	}
 
-	return tokenStr, nil
+	return tokenStr, user, nil
 }
 
 func (s *AuthService) ValidateJWT(tokenStr string) (*JWTClaims, error) {

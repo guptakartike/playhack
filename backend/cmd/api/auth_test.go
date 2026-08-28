@@ -185,12 +185,13 @@ func TestAuthEndpoints(t *testing.T) {
 			t.Fatalf("expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
 		}
 
-		var resp map[string]string
+		var resp map[string]interface{}
 		if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("failed to parse response: %v", err)
 		}
 
-		token, ok := resp["token"]
+		tokenRaw, ok := resp["token"]
+		token, _ := tokenRaw.(string)
 		if !ok || token == "" {
 			t.Fatalf("expected JWT token in response, got %v", resp)
 		}

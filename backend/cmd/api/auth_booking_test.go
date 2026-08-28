@@ -110,7 +110,7 @@ func TestBookingNormalPath(t *testing.T) {
 			t.Fatalf("failed to insert user 1: %v", err)
 		}
 		code1, _ := authService.RequestOTP(ctx, "user1@iitg.ac.in")
-		user1Token, _ = authService.VerifyOTP(ctx, "user1@iitg.ac.in", code1)
+		user1Token, _, _ = authService.VerifyOTP(ctx, "user1@iitg.ac.in", code1)
 
 		// Insert User 2
 		err = pool.QueryRow(ctx, `INSERT INTO users (college_email) VALUES ('user2@iitg.ac.in') RETURNING id`).Scan(&user2ID)
@@ -118,7 +118,7 @@ func TestBookingNormalPath(t *testing.T) {
 			t.Fatalf("failed to insert user 2: %v", err)
 		}
 		code2, _ := authService.RequestOTP(ctx, "user2@iitg.ac.in")
-		user2Token, _ = authService.VerifyOTP(ctx, "user2@iitg.ac.in", code2)
+		user2Token, _, _ = authService.VerifyOTP(ctx, "user2@iitg.ac.in", code2)
 
 		// Insert Facility, Court, and 2 Slots in future
 		var facID string
@@ -140,12 +140,12 @@ func TestBookingNormalPath(t *testing.T) {
 		u1, _ := mock.UpsertUserByEmail(ctx, "user1@iitg.ac.in")
 		user1ID = u1.ID
 		code1, _ := authService.RequestOTP(ctx, "user1@iitg.ac.in")
-		user1Token, _ = authService.VerifyOTP(ctx, "user1@iitg.ac.in", code1)
+		user1Token, _, _ = authService.VerifyOTP(ctx, "user1@iitg.ac.in", code1)
 
 		u2, _ := mock.UpsertUserByEmail(ctx, "user2@iitg.ac.in")
 		user2ID = u2.ID
 		code2, _ := authService.RequestOTP(ctx, "user2@iitg.ac.in")
-		user2Token, _ = authService.VerifyOTP(ctx, "user2@iitg.ac.in", code2)
+		user2Token, _, _ = authService.VerifyOTP(ctx, "user2@iitg.ac.in", code2)
 
 		mock.slots[testSlot1ID] = &repository.SlotWithAvailability{
 			ID: testSlot1ID, StartTime: time.Now().Add(2 * time.Hour), EndTime: time.Now().Add(3 * time.Hour), Available: true,
