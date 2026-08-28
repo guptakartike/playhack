@@ -1,71 +1,20 @@
-# ==============================================================================
-# PlayHack System Git Ignore
-# ==============================================================================
-
-# ------------------------------------------------------------------------------
-# 1. Environment & Secret Files (Ignored anywhere in the project)
-# ------------------------------------------------------------------------------
+# Environment variables
 .env
 *.env
-*.env.*
 !.env.example
-!.env.template
 
-# ------------------------------------------------------------------------------
-# 2. Node.js & Frontend Build Artifacts
-# ------------------------------------------------------------------------------
+# Node dependencies and build
 node_modules/
-**/node_modules/
 dist/
-**/dist/
-build/
-**/build/
-.next/
-.cache/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 
-# ------------------------------------------------------------------------------
-# 3. Go Binaries & Build Artifacts
-# ------------------------------------------------------------------------------
+# Go build binaries
 bin/
-**/bin/
-# Compiled binaries (root or backend directory)
-/backend/api
-/backend/demo
-/backend/seed
-/api
-/demo
-/seed
+*.exe
 backend/cmd/api/api
 backend/cmd/demo/demo
 backend/cmd/seed/seed
-*.exe
-*.exe;
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-vendor/
 
-# ------------------------------------------------------------------------------
-# 4. OS & IDE Metadata
-# ------------------------------------------------------------------------------
+# OS & Editor files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
 .vscode/
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
