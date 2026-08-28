@@ -12,10 +12,14 @@ import (
 )
 
 var (
-	ErrNotFound          = errors.New("record not found")
-	ErrSlotAlreadyBooked = errors.New("slot already booked")
-	ErrBookingNotFound   = errors.New("booking not found")
-	ErrBookingNotOwned    = errors.New("booking belongs to another user")
+	ErrNotFound            = errors.New("record not found")
+	ErrSlotAlreadyBooked   = errors.New("slot already booked")
+	ErrBookingNotFound     = errors.New("booking not found")
+	ErrBookingNotOwned      = errors.New("booking belongs to another user")
+	ErrAlreadyOnWaitlist   = errors.New("already on waitlist for this slot")
+	ErrSlotAvailable       = errors.New("cannot join waitlist on an available slot")
+	ErrExceedsMaxPlayers   = errors.New("player count exceeds court max capacity")
+	ErrInvalidPlayerCount = errors.New("player count must be greater than 0")
 )
 
 type User struct {
@@ -42,8 +46,9 @@ type Facility struct {
 }
 
 type Court struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
+	ID         string `json:"id"`
+	Label      string `json:"label"`
+	MaxPlayers int    `json:"max_players"`
 }
 
 type SlotWithAvailability struct {
@@ -76,6 +81,22 @@ type BookingDetail struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+type WaitlistEntry struct {
+	ID         string     `json:"id"`
+	SlotID     string     `json:"slot_id"`
+	UserID     string     `json:"user_id"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"created_at"`
+	NotifiedAt *time.Time `json:"notified_at,omitempty"`
+}
+
+type SlotNotificationPayload struct {
+	SlotID       string    `json:"slot_id"`
+	CourtLabel   string    `json:"court_label"`
+	FacilityName string    `json:"facility_name"`
+	StartTime    time.Time `json:"start_time"`
+}
+
 type Repository interface {
 	CreateOTP(ctx context.Context, email, codeHash string, expiresAt time.Time) (*OTPCode, error)
 	GetLatestOTPByEmail(ctx context.Context, email string) (*OTPCode, error)
@@ -92,6 +113,9 @@ type Repository interface {
 	CreateBooking(ctx context.Context, slotID, userID string, playerCount int) (*Booking, error)
 	GetBookingsByUser(ctx context.Context, userID string) ([]BookingDetail, error)
 	CancelBooking(ctx context.Context, bookingID, userID string) error
+	CancelBookingAndNotifyWaitlist(ctx context.Context, bookingID, userID string) (string, []string, *SlotNotificationPayload, error)
+
+	JoinWaitlist(ctx context.Context, slotID, userID string) (*WaitlistEntry, error)
 }
 
 type PostgresRepository struct {
@@ -228,7 +252,7 @@ func (r *PostgresRepository) ListFacilities(ctx context.Context) ([]Facility, er
 
 func (r *PostgresRepository) ListCourtsByFacility(ctx context.Context, facilityID string) ([]Court, error) {
 	query := `
-		SELECT id, label
+		SELECT id, label, COALESCE(max_players, 20) as max_players
 		FROM courts
 		WHERE facility_id = $1 AND is_active = true
 		ORDER BY label ASC;
@@ -242,7 +266,7 @@ func (r *PostgresRepository) ListCourtsByFacility(ctx context.Context, facilityI
 	courts := []Court{}
 	for rows.Next() {
 		var c Court
-		if err := rows.Scan(&c.ID, &c.Label); err != nil {
+		if err := rows.Scan(&c.ID, &c.Label, &c.MaxPlayers); err != nil {
 			return nil, fmt.Errorf("failed to scan court: %w", err)
 		}
 		courts = append(courts, c)
@@ -298,13 +322,44 @@ func (r *PostgresRepository) GetSlotByID(ctx context.Context, slotID string) (*S
 }
 
 func (r *PostgresRepository) CreateBooking(ctx context.Context, slotID, userID string, playerCount int) (*Booking, error) {
-	query := `
+	if playerCount <= 0 {
+		return nil, ErrInvalidPlayerCount
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Validate player_count against court.max_players
+	queryMaxPlayers := `
+		SELECT COALESCE(c.max_players, 20)
+		FROM slots s
+		JOIN courts c ON s.court_id = c.id
+		WHERE s.id = $1;
+	`
+	var maxPlayers int
+	err = tx.QueryRow(ctx, queryMaxPlayers, slotID).Scan(&maxPlayers)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to fetch court max_players: %w", err)
+	}
+
+	if playerCount > maxPlayers {
+		return nil, ErrExceedsMaxPlayers
+	}
+
+	// Insert booking relying on partial unique index idx_unique_confirmed_booking
+	queryInsert := `
 		INSERT INTO bookings (slot_id, user_id, player_count)
 		VALUES ($1, $2, $3)
 		RETURNING id, slot_id, user_id, player_count, status, created_at;
 	`
 	var b Booking
-	err := r.pool.QueryRow(ctx, query, slotID, userID, playerCount).Scan(
+	err = tx.QueryRow(ctx, queryInsert, slotID, userID, playerCount).Scan(
 		&b.ID, &b.SlotID, &b.UserID, &b.PlayerCount, &b.Status, &b.CreatedAt,
 	)
 	if err != nil {
@@ -314,6 +369,19 @@ func (r *PostgresRepository) CreateBooking(ctx context.Context, slotID, userID s
 		}
 		return nil, fmt.Errorf("failed to create booking: %w", err)
 	}
+
+	// Cleanup remaining notified rows for this slot to 'expired' in the same transaction
+	queryExpireWaitlist := `
+		UPDATE waitlist_entries
+		SET status = 'expired'
+		WHERE slot_id = $1 AND status = 'notified';
+	`
+	_, _ = tx.Exec(ctx, queryExpireWaitlist, slotID)
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return &b, nil
 }
 
@@ -352,24 +420,135 @@ func (r *PostgresRepository) GetBookingsByUser(ctx context.Context, userID strin
 }
 
 func (r *PostgresRepository) CancelBooking(ctx context.Context, bookingID, userID string) error {
-	var ownerID string
-	var status string
-	err := r.pool.QueryRow(ctx, `SELECT user_id, status FROM bookings WHERE id = $1`, bookingID).Scan(&ownerID, &status)
+	_, _, _, err := r.CancelBookingAndNotifyWaitlist(ctx, bookingID, userID)
+	return err
+}
+
+func (r *PostgresRepository) CancelBookingAndNotifyWaitlist(ctx context.Context, bookingID, userID string) (string, []string, *SlotNotificationPayload, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Fetch booking details & lock row
+	queryBooking := `SELECT slot_id, user_id, status FROM bookings WHERE id = $1 FOR UPDATE;`
+	var slotID, ownerID, status string
+	err = tx.QueryRow(ctx, queryBooking, bookingID).Scan(&slotID, &ownerID, &status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrBookingNotFound
+			return "", nil, nil, ErrBookingNotFound
 		}
-		return fmt.Errorf("failed to fetch booking: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to fetch booking: %w", err)
 	}
 
 	if ownerID != userID {
-		return ErrBookingNotOwned
+		return "", nil, nil, ErrBookingNotOwned
 	}
 
-	_, err = r.pool.Exec(ctx, `UPDATE bookings SET status = 'cancelled' WHERE id = $1 AND user_id = $2`, bookingID, userID)
+	if status == "cancelled" {
+		return slotID, nil, nil, nil
+	}
+
+	// Update booking status to 'cancelled'
+	_, err = tx.Exec(ctx, `UPDATE bookings SET status = 'cancelled' WHERE id = $1`, bookingID)
 	if err != nil {
-		return fmt.Errorf("failed to cancel booking: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to cancel booking: %w", err)
 	}
 
-	return nil
+	// Fetch all waitlist_entries rows for slot_id where status = 'waiting'
+	queryWaitlist := `
+		SELECT user_id 
+		FROM waitlist_entries 
+		WHERE slot_id = $1 AND status = 'waiting' 
+		FOR UPDATE;
+	`
+	rows, err := tx.Query(ctx, queryWaitlist, slotID)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to query waitlist: %w", err)
+	}
+
+	notifiedUserIDs := []string{}
+	for rows.Next() {
+		var uID string
+		if err := rows.Scan(&uID); err == nil {
+			notifiedUserIDs = append(notifiedUserIDs, uID)
+		}
+	}
+	rows.Close()
+
+	// Update all waiting waitlist_entries to status = 'notified', notified_at = now()
+	queryUpdateWaitlist := `
+		UPDATE waitlist_entries 
+		SET status = 'notified', notified_at = now() 
+		WHERE slot_id = $1 AND status = 'waiting';
+	`
+	_, err = tx.Exec(ctx, queryUpdateWaitlist, slotID)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to update waitlist entries: %w", err)
+	}
+
+	// Fetch slot notification payload details
+	querySlotDetails := `
+		SELECT s.id, c.label, f.name, s.start_time
+		FROM slots s
+		JOIN courts c ON s.court_id = c.id
+		JOIN facilities f ON c.facility_id = f.id
+		WHERE s.id = $1;
+	`
+	var payload SlotNotificationPayload
+	err = tx.QueryRow(ctx, querySlotDetails, slotID).Scan(
+		&payload.SlotID, &payload.CourtLabel, &payload.FacilityName, &payload.StartTime,
+	)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to fetch slot details: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", nil, nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return slotID, notifiedUserIDs, &payload, nil
+}
+
+func (r *PostgresRepository) JoinWaitlist(ctx context.Context, slotID, userID string) (*WaitlistEntry, error) {
+	// Reject if slot is currently available (waitlist can only be joined on a booked slot)
+	querySlot := `
+		SELECT s.id, (b.id IS NULL) AS available
+		FROM slots s
+		LEFT JOIN bookings b ON s.id = b.slot_id AND b.status = 'confirmed'
+		WHERE s.id = $1;
+	`
+	var sID string
+	var available bool
+	err := r.pool.QueryRow(ctx, querySlot, slotID).Scan(&sID, &available)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to check slot availability: %w", err)
+	}
+
+	if available {
+		return nil, ErrSlotAvailable
+	}
+
+	queryInsert := `
+		INSERT INTO waitlist_entries (slot_id, user_id, status)
+		VALUES ($1, $2, 'waiting')
+		RETURNING id, slot_id, user_id, status, created_at, notified_at;
+	`
+	var entry WaitlistEntry
+	err = r.pool.QueryRow(ctx, queryInsert, slotID, userID).Scan(
+		&entry.ID, &entry.SlotID, &entry.UserID, &entry.Status, &entry.CreatedAt, &entry.NotifiedAt,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrAlreadyOnWaitlist
+		}
+		return nil, fmt.Errorf("failed to insert waitlist entry: %w", err)
+	}
+
+	return &entry, nil
 }

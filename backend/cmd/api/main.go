@@ -69,13 +69,14 @@ func main() {
 	// Wire application layers
 	repo := repository.NewPostgresRepository(pool)
 
+	sseHub := service.NewSSEHub()
 	authService := service.NewAuthService(repo, jwtSecret)
 	facilityService := service.NewFacilityService(repo)
-	bookingService := service.NewBookingService(repo)
+	bookingService := service.NewBookingService(repo, sseHub)
 
 	authHandler := handler.NewAuthHandler(authService)
 	facilityHandler := handler.NewFacilityHandler(facilityService)
-	bookingHandler := handler.NewBookingHandler(bookingService)
+	bookingHandler := handler.NewBookingHandler(bookingService, sseHub)
 
 	authMiddleware := middleware.NewAuthMiddleware(authService)
 
@@ -97,6 +98,9 @@ func main() {
 	mux.Handle("POST /bookings", authMiddleware.Authenticate(http.HandlerFunc(bookingHandler.HandleCreateBooking)))
 	mux.Handle("GET /bookings/mine", authMiddleware.Authenticate(http.HandlerFunc(bookingHandler.HandleGetMyBookings)))
 	mux.Handle("DELETE /bookings/{id}", authMiddleware.Authenticate(http.HandlerFunc(bookingHandler.HandleCancelBooking)))
+
+	mux.Handle("POST /slots/{id}/waitlist", authMiddleware.Authenticate(http.HandlerFunc(bookingHandler.HandleJoinWaitlist)))
+	mux.Handle("GET /notifications/stream", authMiddleware.Authenticate(http.HandlerFunc(bookingHandler.HandleNotificationStream)))
 
 	// Wrap router with CORS middleware
 	handlerWithCORS := middleware.CORS(mux)

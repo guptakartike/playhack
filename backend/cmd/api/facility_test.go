@@ -345,3 +345,9 @@ func (m *facilityMockRepo) GetBookingsByUser(ctx context.Context, userID string)
 func (m *facilityMockRepo) CancelBooking(ctx context.Context, bookingID, userID string) error {
 	return nil
 }
+func (m *facilityMockRepo) CancelBookingAndNotifyWaitlist(ctx context.Context, bookingID, userID string) (string, []string, *repository.SlotNotificationPayload, error) {
+	return "", nil, nil, nil
+}
+func (m *facilityMockRepo) JoinWaitlist(ctx context.Context, slotID, userID string) (*repository.WaitlistEntry, error) {
+	return nil, nil
+}

@@ -72,10 +72,10 @@ func setupBookingTestApp(t *testing.T) (http.Handler, *service.AuthService, repo
 	}
 
 	authService := service.NewAuthService(repo, jwtSecret)
-	bookingService := service.NewBookingService(repo)
+	bookingService := service.NewBookingService(repo, nil)
 	facilityService := service.NewFacilityService(repo)
 
-	bookingHandler := handler.NewBookingHandler(bookingService)
+	bookingHandler := handler.NewBookingHandler(bookingService, nil)
 	facilityHandler := handler.NewFacilityHandler(facilityService)
 	authMiddleware := middleware.NewAuthMiddleware(authService)
 
@@ -458,4 +458,40 @@ func (m *bookingMockRepo) CancelBooking(ctx context.Context, bookingID, userID s
 	}
 	b.Status = "cancelled"
 	return nil
+}
+
+func (m *bookingMockRepo) CancelBookingAndNotifyWaitlist(ctx context.Context, bookingID, userID string) (string, []string, *repository.SlotNotificationPayload, error) {
+	b, ok := m.bookings[bookingID]
+	if !ok {
+		return "", nil, nil, repository.ErrBookingNotFound
+	}
+	if b.UserID != userID {
+		return "", nil, nil, repository.ErrBookingNotOwned
+	}
+	b.Status = "cancelled"
+	payload := &repository.SlotNotificationPayload{
+		SlotID:       b.SlotID,
+		CourtLabel:   "Court 1",
+		FacilityName: "Complex A",
+		StartTime:    time.Now().Add(2 * time.Hour),
+	}
+	return b.SlotID, nil, payload, nil
+}
+
+func (m *bookingMockRepo) JoinWaitlist(ctx context.Context, slotID, userID string) (*repository.WaitlistEntry, error) {
+	slot, ok := m.slots[slotID]
+	if !ok {
+		return nil, repository.ErrNotFound
+	}
+	if slot.Available {
+		return nil, repository.ErrSlotAvailable
+	}
+	entry := &repository.WaitlistEntry{
+		ID:        "waitlist-1",
+		SlotID:    slotID,
+		UserID:    userID,
+		Status:    "waiting",
+		CreatedAt: time.Now(),
+	}
+	return entry, nil
 }

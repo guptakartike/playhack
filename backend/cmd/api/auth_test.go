@@ -404,3 +404,9 @@ func (m *mockRepo) GetBookingsByUser(ctx context.Context, userID string) ([]repo
 func (m *mockRepo) CancelBooking(ctx context.Context, bookingID, userID string) error {
 	return nil
 }
+func (m *mockRepo) CancelBookingAndNotifyWaitlist(ctx context.Context, bookingID, userID string) (string, []string, *repository.SlotNotificationPayload, error) {
+	return "", nil, nil, nil
+}
+func (m *mockRepo) JoinWaitlist(ctx context.Context, slotID, userID string) (*repository.WaitlistEntry, error) {
+	return nil, nil
+}

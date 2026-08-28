@@ -67,8 +67,8 @@ func TestConcurrencyRaceBenchmark(t *testing.T) {
 	}
 
 	authService := service.NewAuthService(repo, jwtSecret)
-	bookingService := service.NewBookingService(repo)
-	bookingHandler := handler.NewBookingHandler(bookingService)
+	bookingService := service.NewBookingService(repo, nil)
+	bookingHandler := handler.NewBookingHandler(bookingService, nil)
 	authMiddleware := middleware.NewAuthMiddleware(authService)
 
 	mux := http.NewServeMux()
@@ -313,4 +313,10 @@ func (m *concurrentMockRepo) GetBookingsByUser(ctx context.Context, userID strin
 
 func (m *concurrentMockRepo) CancelBooking(ctx context.Context, bookingID, userID string) error {
 	return nil
+}
+func (m *concurrentMockRepo) CancelBookingAndNotifyWaitlist(ctx context.Context, bookingID, userID string) (string, []string, *repository.SlotNotificationPayload, error) {
+	return "", nil, nil, nil
+}
+func (m *concurrentMockRepo) JoinWaitlist(ctx context.Context, slotID, userID string) (*repository.WaitlistEntry, error) {
+	return nil, nil
 }

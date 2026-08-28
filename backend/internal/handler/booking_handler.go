@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -13,10 +14,14 @@ import (
 
 type BookingHandler struct {
 	bookingService *service.BookingService
+	sseHub         *service.SSEHub
 }
 
-func NewBookingHandler(bookingService *service.BookingService) *BookingHandler {
-	return &BookingHandler{bookingService: bookingService}
+func NewBookingHandler(bookingService *service.BookingService, sseHub *service.SSEHub) *BookingHandler {
+	return &BookingHandler{
+		bookingService: bookingService,
+		sseHub:         sseHub,
+	}
 }
 
 type CreateBookingPayload struct {
@@ -43,6 +48,8 @@ func (h *BookingHandler) HandleCreateBooking(w http.ResponseWriter, r *http.Requ
 		case errors.Is(err, repository.ErrSlotAlreadyBooked):
 			writeJSON(w, http.StatusConflict, ErrorResponse{Error: "slot already booked"})
 		case errors.Is(err, service.ErrInvalidPlayerCount),
+			errors.Is(err, repository.ErrInvalidPlayerCount),
+			errors.Is(err, repository.ErrExceedsMaxPlayers),
 			errors.Is(err, service.ErrSlotInPast),
 			errors.Is(err, repository.ErrNotFound):
 			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
@@ -101,4 +108,82 @@ func (h *BookingHandler) HandleCancelBooking(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "booking cancelled successfully"})
+}
+
+func (h *BookingHandler) HandleJoinWaitlist(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	slotID := r.PathValue("id")
+	if slotID == "" {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "slot id required"})
+		return
+	}
+
+	entry, err := h.bookingService.JoinWaitlist(r.Context(), userID, slotID)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrAlreadyOnWaitlist):
+			writeJSON(w, http.StatusConflict, ErrorResponse{Error: err.Error()})
+		case errors.Is(err, repository.ErrSlotAvailable),
+			errors.Is(err, service.ErrSlotInPast),
+			errors.Is(err, repository.ErrNotFound):
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		default:
+			log.Printf("Error joining waitlist for user %s on slot %s: %v", userID, slotID, err)
+			writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "internal server error"})
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, entry)
+}
+
+func (h *BookingHandler) HandleNotificationStream(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeJSON(w, http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "streaming unsupported"})
+		return
+	}
+	flusher.Flush()
+
+	if h.sseHub == nil {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "notification hub uninitialized"})
+		return
+	}
+
+	ch := make(chan service.NotificationPayload, 10)
+	h.sseHub.Register(userID, ch)
+	defer h.sseHub.Unregister(userID, ch)
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case payload, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, err := json.Marshal(payload)
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
+	}
 }

@@ -1,35 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-dark: #0B0B12;
-  --color-brand-surface: #14141E;
-  --color-brand-card: #1A1A26;
-  --color-brand-border: #2A2A3C;
-  --color-brand-orange: #F5793A;
-  --color-brand-orange-hover: #E06728;
-  --color-brand-text: #F1F5F9;
-  --color-brand-muted: #94A3B8;
+  --color-blush: #F3E8EE;
+  --color-blush-light: #F9F3F6;
+  --color-blush-dark: #E8D5DE;
+  --color-plum: #271F30;
+  --color-plum-light: #3D3350;
+  --color-plum-muted: #9B8FA6;
+  --color-lavender: #C8B8D4;
+  --color-lavender-light: #E4DAF0;
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+
+  --font-family-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Base styles */
+html {
+  font-family: var(--font-family-sans);
+  background-color: var(--color-blush);
+  color: var(--color-plum);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background-color: #0B0B12;
-  color: #F1F5F9;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   margin: 0;
-  min-height: 100vh;
+  padding: 0;
+  min-height: 100dvh;
 }
 
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
+#root {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+  overflow-x: hidden;
 }
-::-webkit-scrollbar-track {
-  background: #0B0B12;
+
+/* Scrollbar hiding for horizontal scroll containers */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
-::-webkit-scrollbar-thumb {
-  background: #2A2A3C;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #F5793A;
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
