@@ -30,3 +30,18 @@
 - **Service & Handler Layers**: Implemented `BookingService` and `BookingHandler` with JWT protection for `POST /bookings` (201 Created / 409 Conflict), `GET /bookings/mine`, and `DELETE /bookings/{id}` (200 OK / 403 Forbidden).
 - **Normal-Path Tests**: Created `cmd/api/auth_booking_test.go` verifying valid bookings, 409 conflicts, invalid player counts, unauthorized requests, user booking isolation, and cancelled slot re-availability.
 - **20-Goroutine Race Benchmark**: Created `cmd/api/concurrency_test.go` executing 20 simultaneous booking requests using a synchronized start channel. Verified 100% consistent atomic guarantees (1x HTTP 201, 19x HTTP 409).
+
+## Checkpoint 5: Standalone Hackathon Live Demo Script
+- **Presentation CLI Tool**: Created `cmd/demo/race_demo.go` providing a fast, visual, pitch-deck-ready race benchmark script separate from unit tests.
+- **Zero-Friction Authentication**: Auto-registers/authenticates demo judge users via `POST /auth/request-otp` & `POST /auth/verify-otp` with timestamped emails bypassing rate limits.
+- **Auto-Discovery & Preflight**: Auto-discovers active unbooked future court slots via API endpoints (`GET /facilities`, `GET /facilities/{id}/courts`, `GET /courts/{id}/slots`).
+- **Synchronized Race Barrier**: Fires configurable concurrent booking requests (default 2, up to 10) simultaneously using a synchronized barrier channel.
+- **Visual Latency Formatting**: Displays color-coded terminal responses with microsecond/millisecond latency timers (`201 Created ✅`, `409 Conflict ❌`) and loud PASS/FAIL verdict banners.
+- **Rehearsal `--reset` Flag**: Supports `--reset` flag for instant continuous re-runs during hackathon presentations without resetting database state.
+
+## Checkpoint 6: Frontend & "My Bookings" Page (React + Tailwind CSS)
+- **Vite & Tailwind Architecture**: Initialized React frontend application under `frontend/` configured with Tailwind CSS v4 and dark theme aesthetics (`#0B0B12` background with `#F5793A` orange CTAs).
+- **Reusable `BookingCard` Component**: Created [`frontend/src/components/BookingCard.jsx`](file:///Users/kartikegupta/Documents/GitHub/playhack/frontend/src/components/BookingCard.jsx) rendering facility/court labels, clear date formatting ("Today, 6:00 PM – 7:00 PM"), status chips ("Upcoming", "Completed", "Cancelled"), player count, and cancellation buttons.
+- **Skeleton Loader & Empty State**: Built [`BookingCardSkeleton.jsx`](file:///Users/kartikegupta/Documents/GitHub/playhack/frontend/src/components/BookingCardSkeleton.jsx) for pulse loading states and an empty state card with CTA button directing users to the facility discovery flow.
+- **Cancellation Modal & Inline Toast**: Created [`ConfirmModal.jsx`](file:///Users/kartikegupta/Documents/GitHub/playhack/frontend/src/components/ConfirmModal.jsx) and [`Toast.jsx`](file:///Users/kartikegupta/Documents/GitHub/playhack/frontend/src/components/Toast.jsx) handling `DELETE /bookings/{id}` with in-place status updates and error feedback.
+- **Auth & Route Wiring**: Implemented `MyBookingsPage.jsx` and `App.jsx` with quick demo autofill buttons (`test@iitg.ac.in`, `judge1@iitg.ac.in`), token management, and automatic `401 Unauthorized` login redirection.

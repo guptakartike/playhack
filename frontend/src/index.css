@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-dark: #0B0B12;
+  --color-brand-surface: #14141E;
+  --color-brand-card: #1A1A26;
+  --color-brand-border: #2A2A3C;
+  --color-brand-orange: #F5793A;
+  --color-brand-orange-hover: #E06728;
+  --color-brand-text: #F1F5F9;
+  --color-brand-muted: #94A3B8;
+}
+
+body {
+  background-color: #0B0B12;
+  color: #F1F5F9;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0B12;
+}
+::-webkit-scrollbar-thumb {
+  background: #2A2A3C;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #F5793A;
+}

@@ -55,3 +55,36 @@
 - [x] **20-Goroutine Race Benchmark Test (`cmd/api/concurrency_test.go`)**
   - Spin up 20 parallel goroutines with distinct user JWT tokens firing simultaneously via a synchronized start channel
   - Assert exactly 1 request returns `201 Created` and 19 return `409 Conflict` with 100% pass consistency
+
+---
+
+
+## Phase 4: Frontend & "My Bookings" Dashboard (Completed)
+**Goal:** Dark-themed React + Tailwind UI matching app aesthetics with full booking management.
+
+- [x] **Vite + React + Tailwind CSS Setup (`frontend/`)**
+  - Dark theme (`#0B0B12`) with orange accent (`#F5793A`)
+- [x] **Reusable `BookingCard` Component (`src/components/BookingCard.jsx`)**
+  - Renders facility/court labels, clear date formatting ("Today, 6:00 PM – 7:00 PM"), status chips ("Upcoming", "Completed", "Cancelled"), player count, and cancel trigger button
+- [x] **`MyBookingsPage` Dashboard (`src/pages/MyBookingsPage.jsx`)**
+  - Fetches `GET /bookings/mine` on mount with pulse skeleton loading
+  - Sorts upcoming bookings first (soonest first), then completed/cancelled below (most recent first)
+  - Empty state with CTA button ("Browse Facilities")
+  - Inline confirmation modal (`ConfirmModal`) and toast banner (`Toast`) handling `DELETE /bookings/{id}` with in-place card status updates
+  - Automatic `401 Unauthorized` redirect to login screen
+
+---
+
+## Phase 5: Standalone Hackathon Live Presentation Script (Completed)
+**Goal:** Provide a fast, visual, pitch-deck-ready race benchmark demo for judges.
+
+- [x] **Presentation CLI Binary (`cmd/demo/race_demo.go`)**
+  - Fast, visual CLI separate from unit tests
+- [x] **Zero-Friction Authentication & Auto-Discovery**
+  - Auto-registers demo judge users and discovers active unbooked future slots via API
+- [x] **Microsecond Synchronized Barrier & Latency Timers**
+  - Firing requests simultaneously with latency logging and PASS/FAIL verdict banners
+- [x] **Rehearsal `--reset` Flag**
+  - Enables instant continuous re-runs during presentations
+
+---
