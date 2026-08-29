@@ -1,41 +1,60 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 type Step = 'role' | 'signin';
 type Role = 'student' | 'admin';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { requestOtp, verifyOtp } = useAuth();
+
   const [step, setStep] = useState<Step>('role');
   const [role, setRole] = useState<Role>('student');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [serverOtpCode, setServerOtpCode] = useState<string | null>(null);
 
   const handleRoleSelect = (selectedRole: Role) => {
     setRole(selectedRole);
     setStep('signin');
+    setError(null);
   };
 
-  const handleRequestOtp = () => {
+  const handleRequestOtp = async () => {
     if (!email) return;
+    setError(null);
     setLoading(true);
-    // Simulate OTP request
-    setTimeout(() => {
+
+    try {
+      const code = await requestOtp(email.trim());
       setOtpSent(true);
+      if (code) {
+        setServerOtpCode(code);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to send OTP. Please ensure email ends with @iitg.ac.in');
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (!otp) return;
+    setError(null);
     setLoading(true);
-    // Simulate verification
-    setTimeout(() => {
-      setLoading(false);
+
+    try {
+      await verifyOtp(email.trim(), otp.trim());
       navigate('/sports');
-    }, 800);
+    } catch (err: any) {
+      setError(err?.message || 'Invalid or expired OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -70,9 +89,16 @@ export default function LoginPage() {
         ) : (
           /* ── Sign In Form ── */
           <div className="w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-3 mb-6">
               <button
-                onClick={() => { setStep('role'); setOtpSent(false); setEmail(''); setOtp(''); }}
+                onClick={() => {
+                  setStep('role');
+                  setOtpSent(false);
+                  setEmail('');
+                  setOtp('');
+                  setError(null);
+                  setServerOtpCode(null);
+                }}
                 className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-blush-dark/40 transition-colors"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#271F30" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -86,18 +112,25 @@ export default function LoginPage() {
               </h2>
             </div>
 
+            {error && (
+              <div className="mb-4 bg-danger/10 border border-danger/20 rounded-xl p-3 flex items-start gap-2">
+                <span className="text-danger text-xs mt-0.5">⚠️</span>
+                <p className="text-xs font-medium text-danger">{error}</p>
+              </div>
+            )}
+
             <div className="flex flex-col gap-4">
               {/* Email Input */}
               <div>
                 <label className="text-xs font-semibold text-plum-muted tracking-wide uppercase mb-1.5 block">
-                  Email
+                  College Email (@iitg.ac.in)
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder={role === 'student' ? 'name@iitg.ac.in' : 'admin@iitg.ac.in'}
-                  disabled={otpSent}
+                  placeholder={role === 'student' ? 'student@iitg.ac.in' : 'admin@iitg.ac.in'}
+                  disabled={otpSent || loading}
                   className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-plum placeholder:text-plum-muted/50 border-2 border-transparent focus:border-plum/20 focus:outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
@@ -117,27 +150,42 @@ export default function LoginPage() {
               ) : (
                 <>
                   {/* OTP sent confirmation */}
-                  <div className="flex items-center gap-2 bg-success/10 rounded-xl px-4 py-2.5">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    <span className="text-xs font-medium text-success">OTP sent to {email}</span>
+                  <div className="flex flex-col gap-1.5 bg-success/10 border border-success/20 rounded-xl px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span className="text-xs font-medium text-success">OTP sent to {email}</span>
+                    </div>
+                    {serverOtpCode && (
+                      <div className="flex items-center justify-between pt-1 border-t border-success/20">
+                        <span className="text-[11px] text-success/80">Received code:</span>
+                        <button
+                          type="button"
+                          onClick={() => setOtp(serverOtpCode)}
+                          className="text-xs font-bold text-success bg-white px-2 py-0.5 rounded shadow-xs hover:scale-105 transition-transform tracking-wider"
+                        >
+                          {serverOtpCode} (Click to auto-fill)
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* OTP Input */}
                   <div>
                     <label className="text-xs font-semibold text-plum-muted tracking-wide uppercase mb-1.5 block">
-                      OTP
+                      6-Digit OTP
                     </label>
                     <input
                       type="text"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="6-digit code"
+                      placeholder="••••••"
                       maxLength={6}
                       inputMode="numeric"
                       autoFocus
-                      className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-plum placeholder:text-plum-muted/50 border-2 border-transparent focus:border-plum/20 focus:outline-none transition-colors tracking-[0.3em] font-semibold text-center text-lg"
+                      disabled={loading}
+                      className="w-full bg-white rounded-xl px-4 py-3.5 text-sm text-plum placeholder:text-plum-muted/50 border-2 border-transparent focus:border-plum/20 focus:outline-none transition-colors tracking-[0.4em] font-bold text-center text-lg"
                     />
                   </div>
 
@@ -160,10 +208,16 @@ export default function LoginPage() {
                   </button>
 
                   <button
-                    onClick={() => { setOtpSent(false); setOtp(''); }}
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtp('');
+                      setServerOtpCode(null);
+                      setError(null);
+                    }}
                     className="text-xs font-medium text-plum-muted hover:text-plum transition-colors text-center"
                   >
-                    Resend OTP
+                    Resend OTP or Change Email
                   </button>
                 </>
               )}

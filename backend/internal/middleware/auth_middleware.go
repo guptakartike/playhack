@@ -38,8 +38,12 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			writeJSONError(w, http.StatusUnauthorized, "missing authorization header")
-			return
+			if qToken := r.URL.Query().Get("token"); qToken != "" {
+				authHeader = "Bearer " + qToken
+			} else {
+				writeJSONError(w, http.StatusUnauthorized, "missing authorization header")
+				return
+			}
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)

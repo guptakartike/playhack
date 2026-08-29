@@ -6,13 +6,18 @@ import (
 )
 
 func CORS(next http.Handler) http.Handler {
-	allowedOrigin := os.Getenv("FRONTEND_ORIGIN")
-	if allowedOrigin == "" {
-		allowedOrigin = "http://localhost:5173"
+	defaultOrigin := os.Getenv("FRONTEND_ORIGIN")
+	if defaultOrigin == "" {
+		defaultOrigin = "http://localhost:5533"
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", defaultOrigin)
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")

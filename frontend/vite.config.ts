@@ -10,5 +10,12 @@ export default defineConfig({
   ],
   server: {
     port: 5533,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5532',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
 })

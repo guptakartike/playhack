@@ -35,7 +35,11 @@ func main() {
 		log.Fatalf("Database connection error: %v", err)
 	}
 
-	log.Println("Starting database seeding...")
+	log.Println("Cleaning existing facilities, courts, and slots for a fresh seed...")
+	_, err = pool.Exec(ctx, `TRUNCATE TABLE facilities, courts, slots, bookings, waitlist_entries CASCADE;`)
+	if err != nil {
+		log.Printf("Warning: truncate error: %v", err)
+	}
 
 	facilities := []FacilitySeed{
 		{
@@ -57,7 +61,7 @@ func main() {
 
 	now := time.Now().Local()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	dates := []time.Time{today, today.AddDate(0, 0, 1)}
+	dates := []time.Time{today, today.AddDate(0, 0, 1), today.AddDate(0, 0, 2)}
 
 	for _, f := range facilities {
 		var facilityID string
